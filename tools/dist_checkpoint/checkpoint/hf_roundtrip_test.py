@@ -66,10 +66,11 @@ from megatron.core.enums import ModelType
 from megatron.training.training import get_model
 from megatron.training import print_rank_0
 
-from loongforge.train.parser import parse_train_args
-from loongforge.train.initialize import initialize_loongforge_megatron
-from loongforge.models.foundation.llm_model_provider import llm_model_provider
-from loongforge.models.omni_models.omni_model_provider import omni_model_provider
+from baige_omni.train.parser import parse_train_args
+from baige_omni.train.initialize import initialize_baige_megatron
+from baige_omni.models.foundation.llm_model_provider import llm_model_provider
+from baige_omni.models.omni_models.omni_model_provider import omni_model_provider
+from baige_omni.utils import get_model_config
 
 from dist_checkpoint.checkpoint.hf_checkpoint_loader import load_hf_checkpoint_online
 from dist_checkpoint.checkpoint.hf_checkpoint_saver import save_hf_checkpoint_online
@@ -396,8 +397,16 @@ def main():
     print_rank_0("=" * 80)
     print_rank_0("Phase 1: Build Model")
     print_rank_0("=" * 80)
-    #model = get_model(llm_model_provider, ModelType.encoder_or_decoder, wrap_with_ddp=False)
-    model = get_model(omni_model_provider, ModelType.encoder_or_decoder, wrap_with_ddp=False)
+    model_config = get_model_config()
+    is_vlm = True
+    for name in ["image_encoder", "image_projector"]:
+        if not hasattr(model_config, name):
+            is_vlm = False
+            break
+    if is_vlm:
+        model = get_model(omni_model_provider, ModelType.encoder_or_decoder, wrap_with_ddp=False)
+    else:
+        model = get_model(llm_model_provider, ModelType.encoder_or_decoder, wrap_with_ddp=False)
 
     # ── Step 4: Load HF checkpoint (identical to training) ────────────────
     print_rank_0("=" * 80)
@@ -417,13 +426,13 @@ def main():
     if dist.get_rank() == 0:
         s = io.StringIO()
         ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
-        ps.print_stats(40)  # Print top 40 lines
+        ps.print_stats(40)  # 打印前40行
         print(s.getvalue())
 
         # Print callers/callees
         s2 = io.StringIO()
         ps2 = pstats.Stats(pr, stream=s2).sort_stats('cumulative')
-        ps2.print_callers(30)  # Print caller relationships
+        ps2.print_callers(30)  # 打印调用关系
         print("\n=== Callers ===")
         print(s2.getvalue())
         # Save to file
